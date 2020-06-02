@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+
+export DYNAMODB_TABLE=""
+export STAGE="prod"
+export S3_FILE_PATH=""
+export S3_BUCKET=""
+export S3_OBJECT_KEY=""
+export CLIENT_DIFFERENT_KEY=""
+export BANK_DIGITS_MAIN_KEY=""
+export BANK_DIGITS_FREE_KEY=""
