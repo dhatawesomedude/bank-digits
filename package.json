@@ -16,7 +16,8 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start:dev": "serverless offline",
-    "deploy": "serverless deploy"
+    "deploy": "serverless deploy",
+    "updateDB": "node -e \"require('./lib/import-csv-to-dynamo.js').processCSV()\""
   },
   "author": "Orlando Adeyemi",
   "license": "MIT"
