@@ -1,0 +1,120 @@
+plugins:
+  - serverless-offline
+  - serverless-domain-manager
+
+
+service: bankverification
+# app and org for use with dashboard.serverless.com
+app: bankverification
+org: dhatawesomedude
+
+custom:
+  stage: ${opt:stage, self:provider.stage}
+  domains:
+    prod: api.bankdigits.io
+    staging: staging-api.bankdigits.io
+    dev: dev-api.bankdigits.io
+  customDomain:
+    domainName: ${self:custom.domains.${self:custom.stage}}
+    basePath: ''
+    stage: ${self:provider.stage}
+    createRoute53Record: true
+  apiKeyEnabled:
+    dev: false
+    prod: true
+
+provider:
+  name: aws
+  stage: ${env:STAGE}
+  runtime: nodejs12.x
+  environment:
+    DYNAMODB_TABLE: ${self:service}-${self:provider.stage}
+    STAGE: ${env:STAGE}
+    BANK_DIGITS_FREE_KEY: ${env:BANK_DIGITS_FREE_KEY}
+    BANK_DIGITS_MAIN_KEY: ${env:BANK_DIGITS_MAIN_KEY}
+    CLIENT_DIFFERENT_KEY: ${env:CLIENT_DIFFERENT_KEY}
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - dynamodb:Scan
+        - dynamodb:Query
+        - dynamodb:GetItem
+        - dynamodb:PutItem
+        - dynamodb:UpdateItem
+        - dynamodb:DeleteItem
+      Resource: "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.DYNAMODB_TABLE}"
+  apiKeys:
+    - free:
+      - name: ${self:provider.stage}-bank-digits-internal-free
+        value: ${self:provider.stage}-${env:BANK_DIGITS_FREE_KEY}
+        description: "free key to test free plan for ${self:provider.stage}"
+        customerId: 1
+    - premium:
+      - name: ${self:provider.stage}-bank-digits-internal-premium
+        value: ${self:provider.stage}-${env:BANK_DIGITS_MAIN_KEY}
+        description: "premium key to test premium plan for ${self:provider.stage}"
+        customerId: 1
+      - name: ${self:provider.stage}-client-different-premium
+        value: ${env:CLIENT_DIFFERENT_KEY}
+        description: "key for client:different for stage: ${self:provider.stage}"
+        customerId: 2
+
+  usagePlan:
+    - free:
+        quota:
+          limit: 100
+          offset: 2
+          period: MONTH
+        throttle:
+          burstLimit: 200
+          rateLimit: 100
+    - starter:
+        quota:
+          limit: 5000
+          offset: 1
+          period: MONTH
+        throttle:
+          burstLimit: 2000
+          rateLimit: 1000
+    - premium:
+        quota:
+          limit: 50000
+          offset: 1
+          period: MONTH
+        throttle:
+          burstLimit: 2000
+          rateLimit: 1000
+
+WarmupEventConfig: &warmupEventConfig
+  rate: rate(5 minutes)
+  enabled: true
+  input:
+    action: warmup
+
+resources:
+  Resources:
+    BsbTable:
+      Type: 'AWS::DynamoDB::Table'
+      Properties:
+        AttributeDefinitions:
+          - AttributeName: bsb
+            AttributeType: S
+        KeySchema:
+          - AttributeName: bsb
+            KeyType: HASH
+        BillingMode: PAY_PER_REQUEST
+        TableName: ${self:provider.environment.DYNAMODB_TABLE}
+
+functions:
+  verifyAustralianBSB:
+    handler: handler.verifyAustralianBSB
+    timeout: 20
+    events:
+      - schedule:
+        <<: *warmupEventConfig
+      - http:
+          private: true
+          path: "australia-bsb"
+          method: get
+          integration: lambda-proxy
+          cors: true
